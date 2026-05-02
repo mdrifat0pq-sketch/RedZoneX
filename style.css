@@ -1,0 +1,69 @@
+/* বেসিক সেটিংস */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Roboto', sans-serif;
+}
+
+body {
+    background-color: #0b0b0b; /* গাঢ় কালো ব্যাকগ্রাউন্ড */
+    color: #ffffff;
+    display: flex;
+    justify-content: center;
+}
+
+.app-container {
+    width: 100%;
+    max-width: 500px; /* মোবাইল ফ্রেন্ডলি সাইজ */
+    min-height: 100vh;
+    background-color: #121212;
+}
+
+/* ব্যানার ডিজাইন */
+.main-banner {
+    width: 100%;
+    overflow: hidden;
+    line-height: 0; /* ইমেজের নিচের বাড়তি গ্যাপ সরানোর জন্য */
+}
+
+.banner-img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-bottom: 2px solid #ff0000; /* ব্যানারের নিচে চিকন লাল বর্ডার */
+}
+
+/* কন্টেন্ট এরিয়া */
+.content-area {
+    padding: 20px 15px;
+}
+
+.section-title {
+    font-size: 18px;
+    margin-bottom: 15px;
+    color: #ff0000;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* ভিডিও গ্রিড ডিজাইন */
+.video-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* এক লাইনে ২টা ভিডিও */
+    gap: 15px;
+}
+
+.loading-text {
+    text-align: center;
+    color: #888;
+    grid-column: span 2;
+    margin-top: 50px;
+}
+
+/* মোবাইল রেসপন্সিভনেস */
+@media (max-width: 360px) {
+    .video-grid {
+        grid-template-columns: 1fr; /* খুব ছোট ফোনে একটা করে ভিডিও */
+    }
+  }
