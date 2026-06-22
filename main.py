@@ -10,23 +10,22 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Bot is running professionally!"
+    return "R.downloader bot is running professionally!"
 
 def run_web_server():
-    # Render automatically provides a PORT environment variable
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
 # --- TELEGRAM BOT SETUP ---
-# Fetch Token from Render Environment Variables for security
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable is missing!")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Temporary user state storage for platform selection
+# Temporary user storage for states and search tracking
 user_states = {}
+search_cache = {}
 
 # --- HELPER FUNCTIONS ---
 def format_duration(seconds):
@@ -63,16 +62,16 @@ def extract_video_info(url_or_search, is_search=False):
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    """Professional Welcome Message with Rich Text and Interface"""
+    """Super Professional Welcome Message for R.downloader bot"""
     welcome_text = (
-        f"👋 *Welcome to the Ultimate Media Streamer Bot, {message.from_user.first_name}!*\n\n"
-        "⚡ *What can I do for you?*\n"
-        "• Extract high-speed streaming & download links.\n"
-        "• Search videos directly across multiple platforms.\n"
-        "• Support for YouTube, Facebook, and many more.\n\n"
-        "🎯 *How to use:* \n"
-        "1️⃣ Simply paste any video link directly to get immediate details.\n"
-        "2️⃣ Or, click the button below to search for keywords."
+        f"🤖 *Welcome to R.downloader bot, {message.from_user.first_name}!*\n\n"
+        "⚡ _Your premium, ultra-fast solution for extracting direct streaming and high-speed download links seamlessly._\n\n"
+        "🔥 *Core Features:* \n"
+        "• Direct Extraction via Video/Audio Links\n"
+        "• Smart Platform Search (YouTube & General Web)\n"
+        "• Zero buffering, instant media details with posters\n\n"
+        "🎯 *How to Start:* \n"
+        "💡 Simply *paste any video link* directly to fetch its details, or click the button below to *search by keywords/titles*."
     )
     
     markup = InlineKeyboardMarkup()
@@ -91,7 +90,7 @@ def choose_platform(call):
     markup = InlineKeyboardMarkup()
     markup.row(
         InlineKeyboardButton("📺 YouTube", callback_data="plat_ytsearch"),
-        InlineKeyboardButton("🌐 General Web", callback_data="plat_ytsearch") # yt-dlp uses ytsearch for general queries too
+        InlineKeyboardButton("🌐 General Web", callback_data="plat_ytsearch")
     )
     
     bot.edit_message_text(
@@ -104,7 +103,7 @@ def choose_platform(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("plat_"))
 def platform_selected(call):
-    platform_prefix = call.data.split("_")[1] # e.g., ytsearch
+    platform_prefix = call.data.split("_")[1]
     user_states[call.message.chat.id] = platform_prefix
     
     bot.send_message(
@@ -113,12 +112,50 @@ def platform_selected(call):
         parse_mode="Markdown"
     )
 
+@bot.callback_query_handler(func=lambda call: call.data.startswith("selectvideo_"))
+def handle_video_selection(call):
+    """Triggered when a user clicks a number button from the top 10 search results"""
+    chat_id = call.message.chat.id
+    _, cache_key, index = call.data.split("_")
+    
+    # Retrieve the actual URL from cache
+    lookup_key = f"{cache_key}_{index}"
+    video_url = search_cache.get(lookup_key)
+    
+    if not video_url:
+        bot.send_message(chat_id, "❌ *Session expired! Please search again.*", parse_mode="Markdown")
+        return
+        
+    msg = bot.send_message(chat_id, "⚡ *Extracting poster and high-speed links, please wait...*", parse_mode="Markdown")
+    info = extract_video_info(video_url, is_search=False)
+    
+    if not info:
+        bot.edit_message_text("❌ *Failed to extract link info.*", chat_id, msg.message_id, parse_mode="Markdown")
+        return
+        
+    title = info.get('title', 'No Title')
+    poster = info.get('thumbnail', '')
+    duration = format_duration(info.get('duration'))
+    stream_url = info.get('url', '')
+
+    response_text = (
+        f"🎬 *Title:* {title}\n"
+        f"⏱️ *Duration:* {duration}\n\n"
+        f"📥 *Download / Play Link:* \n[⚡ Click Here to Watch or Download]({stream_url})"
+    )
+    
+    bot.delete_message(chat_id, msg.message_id)
+    if poster:
+        bot.send_photo(chat_id, poster, caption=response_text, parse_mode="Markdown")
+    else:
+        bot.send_message(chat_id, response_text, parse_mode="Markdown")
+
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     chat_id = message.chat.id
     text = message.text.strip()
     
-    # Check if input is a direct link
+    # Case 1: Direct link search
     if text.startswith("http://") or text.startswith("https://"):
         msg = bot.send_message(chat_id, "⚡ *Processing link, please wait...*", parse_mode="Markdown")
         info = extract_video_info(text, is_search=False)
@@ -135,21 +172,21 @@ def handle_message(message):
         response_text = (
             f"🎬 *Title:* {title}\n"
             f"⏱️ *Duration:* {duration}\n\n"
-            f"🔗 *Direct Link:* [Click to Play/Download]({stream_url})"
+            f"📥 *Download / Play Link:* \n[⚡ Click Here to Watch or Download]({stream_url})"
         )
         
         bot.delete_message(chat_id, msg.message_id)
         if poster:
             bot.send_photo(chat_id, poster, caption=response_text, parse_mode="Markdown")
         else:
-            bot.send_message(chat_id, response_text, parse_mode="Markdown", disable_web_page_preview=False)
+            bot.send_message(chat_id, response_text, parse_mode="Markdown")
 
-    # Else treating it as search query if platform is selected
+    # Case 2: Keyword Title Search
     elif chat_id in user_states:
         platform = user_states[chat_id]
-        search_query = f"{platform}10:{text}" # yt-dlp syntax for top 10 results
+        search_query = f"{platform}10:{text}"
         
-        msg = bot.send_message(chat_id, f"🔍 *Searching for Top 10 results for:* `{text}`...", parse_mode="Markdown")
+        msg = bot.send_message(chat_id, f"🔍 *Searching Top 10 results for:* `{text}`...", parse_mode="Markdown")
         search_results = extract_video_info(search_query, is_search=True)
         
         if not search_results or 'entries' not in search_results:
@@ -158,42 +195,50 @@ def handle_message(message):
             
         entries = list(search_results['entries'])[:10]
         
+        list_text = f"🎯 *Top 10 Results for* `{text}`:\n\n"
         markup = InlineKeyboardMarkup()
+        
+        # Create unique cache key based on user chat_id to store URLs safely without 64-byte limit error
+        cache_key = str(chat_id)
+        
+        row_buttons = []
         for idx, entry in enumerate(entries, start=1):
-            # yt-dlp flat extract gives id/url or title
             title = entry.get('title', f'Video {idx}')
             video_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
-            markup.add(InlineKeyboardButton(f"🎬 {idx}. {title[:30]}...", callback_data=f"sel_{video_url[:40]}")) 
-            # Note: Callback data has a 64-byte limit. For production, storing URLs in a dict/DB is recommended.
-            # As a shortcut, we store the actual full text in the state to retrieve on click.
-            user_states[f"url_{chat_id}_{idx}"] = video_url
-
-        # Let's present a cleaner list via text and custom inline trigger
-        list_text = f"🎯 *Top 10 Results for* `{text}`:\n\n"
-        for idx, entry in enumerate(entries, start=1):
-            list_text += f"{idx}. *{entry.get('title')}*\n"
             
-        list_text += "\n👇 *Click on the links below or paste the specific link to fetch media details!*"
+            # Save to temporary backend cache
+            search_cache[f"{cache_key}_{idx}"] = video_url
+            
+            list_text += f"{idx}. *{title}*\n"
+            
+            # Generate inline numerical selector buttons [1], [2], [3]...
+            btn = InlineKeyboardButton(f"[{idx}]", callback_data=f"selectvideo_{cache_key}_{idx}")
+            row_buttons.append(btn)
+            
+            # Group buttons into rows of 5 for ultimate clean layout
+            if len(row_buttons) == 5 or idx == len(entries):
+                markup.row(*row_buttons)
+                row_buttons = []
+
+        list_text += "\n👇 *Click on the number button below to fetch its Poster & Download Link!*"
         
         bot.delete_message(chat_id, msg.message_id)
+        bot.send_message(chat_id, list_text, parse_mode="Markdown", reply_markup=markup)
         
-        # To bypass callback 64 byte limit safely, we print them out with numbers
-        bot.send_message(chat_id, list_text, parse_mode="Markdown")
-        # Clear state after search to prevent loop
+        # Clear searching state
         del user_states[chat_id]
     else:
         bot.send_message(
             chat_id, 
-            "💡 *Please paste a valid video URL, or click 'Search Content' from /start command!*", 
+            "💡 *Please paste a valid video URL, or click 'Search Content' from /start to look up keywords!*", 
             parse_mode="Markdown"
         )
 
 # --- START BOT & SERVER ---
 if __name__ == "__main__":
-    # Start Web Server in background thread for Render
     server_thread = threading.Thread(target=run_web_server)
     server_thread.daemon = True
     server_thread.start()
     
-    print("Bot is successfully pooling...")
+    print("R.downloader bot is successfully polling...")
     bot.infinity_polling()
