@@ -10,7 +10,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "R.downloader bot is running professionally!"
+    return "R.downloader bot is running perfectly!"
 
 def run_web_server():
     port = int(os.environ.get("PORT", 8080))
@@ -130,7 +130,7 @@ def handle_video_selection(call):
     info = extract_video_info(video_url, is_search=False)
     
     if not info:
-        bot.edit_message_text("❌ *Failed to extract link info.*", chat_id, msg.message_id, parse_mode="Markdown")
+        bot.edit_message_text("❌ *Failed to extract link info. Try another video or search again.*", chat_id, msg.message_id, parse_mode="Markdown")
         return
         
     title = info.get('title', 'No Title')
@@ -198,15 +198,26 @@ def handle_message(message):
         list_text = f"🎯 *Top 10 Results for* `{text}`:\n\n"
         markup = InlineKeyboardMarkup()
         
-        # Create unique cache key based on user chat_id to store URLs safely without 64-byte limit error
         cache_key = str(chat_id)
-        
         row_buttons = []
+        
         for idx, entry in enumerate(entries, start=1):
             title = entry.get('title', f'Video {idx}')
-            video_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
             
-            # Save to temporary backend cache
+            # FIXED URL LOGIC: Build absolute URL using video ID if the primary URL is partial or missing
+            video_url = entry.get('url')
+            video_id = entry.get('id')
+            
+            if not video_url and video_id:
+                video_url = f"https://www.youtube.com/watch?v={video_id}"
+            elif video_url and not video_url.startswith("http"):
+                video_url = f"https://www.youtube.com/watch?v={video_url}"
+                
+            # If still no valid URL can be formed, skip or fallback safely
+            if not video_url:
+                continue
+
+            # Save clean validated URL to temporary backend cache
             search_cache[f"{cache_key}_{idx}"] = video_url
             
             list_text += f"{idx}. *{title}*\n"
@@ -215,7 +226,6 @@ def handle_message(message):
             btn = InlineKeyboardButton(f"[{idx}]", callback_data=f"selectvideo_{cache_key}_{idx}")
             row_buttons.append(btn)
             
-            # Group buttons into rows of 5 for ultimate clean layout
             if len(row_buttons) == 5 or idx == len(entries):
                 markup.row(*row_buttons)
                 row_buttons = []
@@ -240,5 +250,5 @@ if __name__ == "__main__":
     server_thread.daemon = True
     server_thread.start()
     
-    print("R.downloader bot is successfully polling...")
+    print("R.downloader bot is successfully pooling with URL fixes...")
     bot.infinity_polling()
